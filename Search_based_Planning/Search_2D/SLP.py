@@ -1,6 +1,6 @@
 """
-A_star 2D
-@author: huiming zhou
+SLP
+@author: yinliang chen
 """
 
 import os
@@ -45,20 +45,22 @@ class SLP:
         path = [self.s_start]
         inter = []
         # exclude vertical line case
-        if self.s_start[0]-self.s_goal[0] != 0:
-            self.line_slope = (self.s_start[1]-self.s_goal[1])/(self.s_start[0]-self.s_goal[0])
+        if self.s_start[0] - self.s_goal[0] != 0:
+            self.line_slope = (self.s_start[1] - self.s_goal[1]) / (self.s_start[0] - self.s_goal[0])
             path_dx = 0
             while True:
                 if self.s_start[0] + path_dx == self.s_goal[0]:
                     break
                 path_dx += 1
-                point = (self.s_start[0] + path_dx, math.ceil(self.s_start[1] + self.line_slope*path_dx))
+                point = (self.s_start[0] + path_dx, math.ceil(self.s_start[1] + self.line_slope * path_dx))
                 if point in self.obs:
                     inter.append(point)
-                    self.astar_sg .append([(self.s_start[0] + path_dx-1, math.ceil(self.s_start[1] + self.line_slope*(path_dx-1))),
-                                     (self.s_start[0] + path_dx+1, math.ceil(self.s_start[1] + self.line_slope*(path_dx+1)))])
+                    self.astar_sg.append(
+                        [(self.s_start[0] + path_dx - 1, math.ceil(self.s_start[1] + self.line_slope * (path_dx - 1))),
+                         (self.s_start[0] + path_dx + 1, math.ceil(self.s_start[1] + self.line_slope * (path_dx + 1)))])
                 else:
                     path.append(point)
+
 
         else:
             path_dy = 0
@@ -86,71 +88,55 @@ class SLP:
             a_path = np.array(a_path)
             a_path = a_path[::-1][1:-1] # reverse and remove start and goal
             insert_place = np.where(slp_path == sg[0])[0]
-            insert_place = stats.mode(insert_place)[0][0]
+            insert_place = stats.mode(insert_place)[0][0]  # the most element
             slp_path_a = slp_path[0:insert_place]
             slp_path_b = slp_path[insert_place+1:]
             slp_path = np.concatenate((slp_path_a,a_path))
             slp_path = np.concatenate((slp_path,slp_path_b)) # insert astar path
         return slp_path.tolist()
 
-    def repeated_searching(self, s_start, s_goal, e):
-        """
-        run A* with weight e.
-        :param s_start: starting state
-        :param s_goal: goal state
-        :param e: weight of a*
-        :return: path and visited order.
-        """
+    def PATH_LINEARIZER(self, path):
+        assert path[-1] != self.s_goal
+        assert path[0] != self.s_start
 
-        g = {s_start: 0, s_goal: float("inf")}
-        PARENT = {s_start: s_start}
-        OPEN = []
-        CLOSED = []
-        heapq.heappush(OPEN,
-                       (g[s_start] + e * self.heuristic(s_start), s_start))
+        if len(path) < 4:
+            return path
 
-        while OPEN:
-            _, s = heapq.heappop(OPEN)
-            CLOSED.append(s)
+        linearized_path = []
 
-            if s == s_goal:
-                break
+        i = len(path) - 1  # parse adversely
+        j = i - 1
+        pre = j
+        linearized_path.append(path[i])
 
-            for s_n in self.get_neighbor(s):
-                new_cost = g[s] + self.cost(s, s_n)
 
-                if s_n not in g:
-                    g[s_n] = math.inf
+        while True:
+            # if j == 0:
+            #     if self.is_collision(tuple(path[i]), tuple(path[j])):
+            #         linearized_path.append(path[pre])
+            #     break
+            if self.is_collision(tuple(path[i]), tuple(path[j])):
+                print("{} and {} collide".format(path[i],path[j]))
+                linearized_path.append(path[pre])
+                if j == 0:
+                    break
+                else:
+                    i = pre
+                    j = pre-1
+                    pre = j
+            else:
+                if j == 0:
+                    break
+                pre = j
+                j -= 1
 
-                if new_cost < g[s_n]:  # conditions for updating Cost
-                    g[s_n] = new_cost
-                    PARENT[s_n] = s
-                    heapq.heappush(OPEN, (g[s_n] + e * self.heuristic(s_n), s_n))
 
-        return self.extract_path(PARENT), CLOSED
+        linearized_path.append(path[0])
+        linearized_path = np.array(linearized_path)
+        print(path)
+        print(linearized_path[::-1].tolist())
+        return linearized_path[::-1].tolist()
 
-    def get_neighbor(self, s):
-        """
-        find neighbors of state s that not in obstacles.
-        :param s: state
-        :return: neighbors
-        """
-
-        return [(s[0] + u[0], s[1] + u[1]) for u in self.u_set]
-
-    def cost(self, s_start, s_goal):
-        """
-        Calculate Cost for this motion
-        :param s_start: starting node
-        :param s_goal: end node
-        :return:  Cost for this motion
-        :note: Cost function could be more complicate!
-        """
-
-        if self.is_collision(s_start, s_goal):
-            return math.inf
-
-        return math.hypot(s_goal[0] - s_start[0], s_goal[1] - s_start[1])
 
     def is_collision(self, s_start, s_end):
         """
@@ -159,76 +145,47 @@ class SLP:
         :param s_end: end node
         :return: True: is collision / False: not collision
         """
-
         if s_start in self.obs or s_end in self.obs:
             return True
 
-        if s_start[0] != s_end[0] and s_start[1] != s_end[1]:
-            if s_end[0] - s_start[0] == s_start[1] - s_end[1]:
-                s1 = (min(s_start[0], s_end[0]), min(s_start[1], s_end[1]))
-                s2 = (max(s_start[0], s_end[0]), max(s_start[1], s_end[1]))
-            else:
-                s1 = (min(s_start[0], s_end[0]), max(s_start[1], s_end[1]))
-                s2 = (max(s_start[0], s_end[0]), min(s_start[1], s_end[1]))
+        if s_start[0]-s_end[0] != 0:
+            slope = (s_start[1]-s_end[1])/(s_start[0]-s_end[0])
+            path_dx = 0
+            dx_delta = math.copysign(1, s_end[0]-s_start[0])
 
-            if s1 in self.obs or s2 in self.obs:
-                return True
-
+            while True:
+                if s_start[0] + path_dx == s_end[0]:
+                    break
+                path_dx += dx_delta
+                ceil_point = (s_start[0] + path_dx, math.ceil(s_start[1] + slope*path_dx))
+                floor_point = (s_start[0] + path_dx, math.floor(s_start[1] + slope*path_dx))
+                if ceil_point in self.obs or floor_point in self.obs:
+                    print("collided at {} or {}".format(ceil_point,floor_point))
+                    return True
         return False
-
-    def f_value(self, s):
-        """
-        f = g + h. (g: Cost to come, h: heuristic value)
-        :param s: current state
-        :return: f
-        """
-
-        return self.g[s] + self.heuristic(s)
-
-    def extract_path(self, PARENT):
-        """
-        Extract the path based on the PARENT set.
-        :return: The planning path
-        """
-
-        path = [self.s_goal]
-        s = self.s_goal
-
-        while True:
-            s = PARENT[s]
-            path.append(s)
-
-            if s == self.s_start:
-                break
-
-        return list(path)
-
-    def heuristic(self, s):
-        """
-        Calculate heuristic.
-        :param s: current node (state)
-        :return: heuristic function value
-        """
-
-        heuristic_type = self.heuristic_type  # heuristic type
-        goal = self.s_goal  # goal node
-
-        if heuristic_type == "manhattan":
-            return abs(goal[0] - s[0]) + abs(goal[1] - s[1])
-        else:
-            return math.hypot(goal[0] - s[0], goal[1] - s[1])
-
 
 def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
     slp = SLP(s_start, s_goal, "euclidean")
+    # print(slp.is_collision(s_start,s_start))
     plot = plotting.Plotting(s_start, s_goal)
-
     path, visited = slp.LINEAR_PATH_CALCULATOR()
     slp_path = slp.BASIS_ALGORITHM_PLANNER(path)
+
+    linearized_path = slp.PATH_LINEARIZER(slp_path)
+    pre_path_len = len(linearized_path)
+    while True:
+        linearized_path = slp.PATH_LINEARIZER(linearized_path)
+        cur_path_len = len(linearized_path)
+        if pre_path_len == cur_path_len:
+            break
+        else:
+            pre_path_len = cur_path_len
+
     plot.animation(slp_path, visited, "SLP")  # animation
+    plot.animation(linearized_path, visited, "SLP")  # animation
 
     # path, visited = astar.searching_repeated_astar(2.5)               # initial weight e = 2.5
     # plot.animation_ara_star(path, visited, "Repeated A*")
