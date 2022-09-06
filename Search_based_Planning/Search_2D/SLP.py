@@ -47,11 +47,12 @@ class SLP:
         # exclude vertical line case
         if self.s_start[0] - self.s_goal[0] != 0:
             self.line_slope = (self.s_start[1] - self.s_goal[1]) / (self.s_start[0] - self.s_goal[0])
+            dx_delta = math.copysign(1, self.s_goal[0] - self.s_start[0])
             path_dx = 0
             while True:
                 if self.s_start[0] + path_dx == self.s_goal[0]:
                     break
-                path_dx += 1
+                path_dx += dx_delta
                 point = (self.s_start[0] + path_dx, math.ceil(self.s_start[1] + self.line_slope * path_dx))
                 if point in self.obs:
                     inter.append(point)
@@ -64,10 +65,11 @@ class SLP:
 
         else:
             path_dy = 0
+            dy_delta = math.copysign(1, self.s_goal[1] - self.s_start[1])
             while True:
                 if self.s_start[1] + path_dy == self.s_goal[1]:
                     break
-                path_dy += 1
+                path_dy += dy_delta
                 point = (self.s_start[0], self.s_start[1] + path_dy)
                 if point in self.obs:
                     inter.append(point)
